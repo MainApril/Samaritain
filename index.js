@@ -6,9 +6,9 @@
   const GROQ_MODEL = "llama-3.1-8b-instant"; // rapide, largement au-dessus d'1B en qualité, tourne côté serveur Groq
   const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 
-  const LANG = "fr-FR";
+  const LANG = `${navigator.language}-${navigator.language.toLocaleUpperCase()}`; // Detecte automatiquement la langue de l'utilisateur.
   const WORD_DELAY_MS = 400;
-  const FADE_MS       = 150;
+  const FADE_MS = 150;
 
   modelNameEl_init();
   function modelNameEl_init() {}
