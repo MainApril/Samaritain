@@ -107,7 +107,7 @@
     letter-spacing: 0.1em;
     text-align: center;
     padding: 20px 40px;
-    max-width: min(82vw, 560px);
+    max-width: 50%;
     border: 2px solid #000;
   }
   #status.show .label { animation: labelIn 0.5s ease; }
