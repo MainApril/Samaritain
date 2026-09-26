@@ -684,6 +684,6 @@
     setMode("");
     setText("");
     loadModel().catch((e) => logDev("warn", ["[gen] préchargement échoué", e]));
+    speakWords("What are your commands ?");
   })();
-  speakWords("What are your commands ?");
 })();
