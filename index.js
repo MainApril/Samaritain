@@ -38,7 +38,6 @@
   window.addEventListener("error", (e) => { logDev("script", [e.message]); });
   window.addEventListener("unhandledrejection", (e) => { logDev("rejection", [e.reason]); });
 
-  // ---------- DOM ----------
   const textEl      = document.getElementById("text");
   const barEl       = document.getElementById("bar");
   const bodyEl      = document.body;
@@ -58,7 +57,6 @@
   let retryIndex = 0;
   const RETRY_DELAYS = [300, 1000, 2000, 3500];
 
-  // ---------- AFFICHAGE ----------
   function measureTextWidth(text) {
     const cs = getComputedStyle(textEl);
     const span = document.createElement("span");
@@ -142,17 +140,6 @@
         textEl.textContent = "\u00A0";
       }
     }
-  }
-
-  async function boot() {
-    const name = "SAMARITAN";
-    textEl.classList.remove("hidden");
-    for (let i = 1; i <= name.length; i++) {
-      textEl.textContent = name.slice(0, i);
-      barEl.style.width = Math.min(measureTextWidth(name.slice(0, i)), mainEl.clientWidth) + "px";
-      await sleep(70);
-    }
-    await sleep(300);
   }
 
   // ---------- FAUX LOADER (cosmétique) ----------
@@ -695,7 +682,6 @@
 
   (async () => {
     await playFakeLoader();
-    await boot();
     setMode("");
     setText("");
     loadModel().catch((e) => logDev("warn", ["[gen] préchargement échoué", e]));
