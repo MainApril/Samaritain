@@ -572,7 +572,6 @@
 
   (async () => {
     await playFakeLoader();
-    await boot();
     setMode("");
     setText("");
   })();
