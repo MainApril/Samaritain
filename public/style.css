@@ -1,6 +1,6 @@
  @font-face {
     font-family: "magdacleanmono";
-    src: url("magdacleanmono-regular-webfont.otf") format("opentype");
+    src: url("font.otf") format("opentype");
   }
   * { box-sizing: border-box; }
   html, body {
