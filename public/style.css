@@ -52,25 +52,150 @@
     border-bottom: none;
     transition: width 0.3s ease;
   }
+
+  /* Image avec effets border animés */
+  #image-border {
+    position: relative;
+    margin: 32px auto;
+    max-width: 90vw;
+    aspect-ratio: 4/3;
+    border: 8px solid #000;
+    overflow: hidden;
+    box-shadow: 0 0 32px rgba(0,0,0,0.15);
+  }
+  #image-border img {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  #image-border figcaption {
+    position: absolute;
+    bottom: 8px;
+    left: 8px;
+    color: #000;
+    font-size: 0.65em;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    background: rgba(255,255,255,0.8);
+    padding: 4px 8px;
+  }
+
+  /* Lignes animées autour de l'image */
+  #image-border::before,
+  #image-border::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border: 2px solid #000;
+    animation: lineAnim 4s ease-in-out infinite;
+    pointer-events: none;
+    z-index: 10;
+  }
+  #image-border::before {
+    animation-direction: alternate;
+    animation-delay: 0s;
+  }
+  #image-border::after {
+    animation-direction: reverse;
+    animation-delay: 1s;
+  }
+  @keyframes lineAnim {
+    0%, 100% { 
+      transform: scaleX(1) scaleY(1);
+      opacity: 0.3;
+    }
+    50% { 
+      transform: scaleX(1.2) scaleY(0.8);
+      opacity: 1;
+    }
+  }
   #main p, #main hr { margin-top: 0; margin-bottom: 0; }
   #main p.hidden { color: #fff; }
-  #marker { margin-top: 5px; }
+  #marker {
+    margin-top: 6px;
+    line-height: 1;
+    transform: translateY(-30%);
+  }
   #triangle {
     color: #F00;
-    font-size: clamp(1.3em, 6vw, 2em);
+    font-size: clamp(1.1em, 5vw, 1.8em);
     font-family: "magdacleanmono";
     display: inline-block;
+    line-height: 1;
+    margin-top : 15px;
   }
-  body.listening #triangle { animation: pulse 1s ease-in-out infinite; }
-  body.thinking #triangle  { animation: blink 1.4s ease-in-out infinite; }
-  @keyframes pulse {
-    0%   { transform: scale(1);    opacity: 0.6; }
-    50%  { transform: scale(1.3); opacity: 1; }
-    100% { transform: scale(1);    opacity: 0.6; }
+  #marker .dots[hidden] { display: none !important; }
+  #marker .dots:not([hidden]) + #triangle { display: none !important; }
+  #marker .dot {
+    display: inline-block;
+    vertical-align: middle;
+    width: clamp(4.5px, 1.4vw, 7px);
+    height: clamp(4.5px, 1.4vw, 7px);
+    border-radius: 50%;
+    opacity: 1;
   }
-  @keyframes blink {
-    0%, 100% { opacity: 0.25; }
+  #marker .dot-1 {
+    background: #fff;
+    border: 1px solid #888;
+    margin-right: 1.2em;
+  }
+  #marker .dot-2 { background: #888; margin-right: 0.25em; }
+  #marker .dot-3 { background: #888; }
+  /* Chargement : toujours actif tant que les pastilles sont visibles.
+     Cycle de 3,5 s. Phase 1 : chaque pastille clignote puis disparait.
+     Phase 2 (a 1 s) : l'inverse, elle clignote puis reapparait.
+     Ordre : le dernier rond gris demarre en meme temps que la blanche
+     (a 0 s), puis le premier rond gris suit 0,5 s plus tard. Chaque rond
+     clignote deux fois, la blanche quatre fois.
+     Repere : 0,125 s = 3,5714 %, 0,25 s = 7,1429 %, 0,5 s = 14,2857 %,
+     0,75 s = 21,4286 %, 1 s = 28,5714 %, 1,25 s = 35,7143 %,
+     1,5 s = 42,8571 %, 1,75 s = 50 %, 2 s = 57,1429 %. */
+  #marker .dot-1 { animation: dotBlinkTriple 3.5s linear infinite; }
+  #marker .dot-2 { animation: dotBlinkDoubleLate 3.5s linear infinite; }
+  #marker .dot-3 { animation: dotBlinkDoubleEarly 3.5s linear infinite; }
+  @keyframes dotBlinkDoubleEarly {
+    0%       { opacity: 1; }
+    3.5714%  { opacity: 0.25; }
+    7.1429%  { opacity: 1; }
+    10.7143% { opacity: 0.25; }
+    14.2857% { opacity: 0; }
+    28.5714% { opacity: 0; }
+    32.1429% { opacity: 0.25; }
+    35.7143% { opacity: 1; }
+    39.2857% { opacity: 0.25; }
+    42.8571% { opacity: 1; }
+    100%     { opacity: 1; }
+  }
+  @keyframes dotBlinkDoubleLate {
+    0%       { opacity: 1; }
+    14.2857% { opacity: 1; }
+    17.8571% { opacity: 0.25; }
+    21.4286% { opacity: 1; }
+    25%      { opacity: 0.25; }
+    28.5714% { opacity: 0; }
+    42.8571% { opacity: 0; }
+    46.4286% { opacity: 0.25; }
     50%      { opacity: 1; }
+    53.5714% { opacity: 0.25; }
+    57.1429% { opacity: 1; }
+    100%     { opacity: 1; }
+  }
+  @keyframes dotBlinkTriple {
+    0%       { opacity: 1; }
+    3.5714%  { opacity: 0.25; }
+    7.1429%  { opacity: 1; }
+    10.7143% { opacity: 0.25; }
+    14.2857% { opacity: 1; }
+    17.8571% { opacity: 0.25; }
+    21.4286% { opacity: 0; }
+    28.5714% { opacity: 0; }
+    32.1429% { opacity: 0.25; }
+    35.7143% { opacity: 1; }
+    39.2857% { opacity: 0.25; }
+    42.8571% { opacity: 1; }
+    46.4286% { opacity: 0.25; }
+    50%      { opacity: 1; }
+    100%     { opacity: 1; }
   }
   #settings {
     width: 40px;
@@ -107,7 +232,6 @@
     letter-spacing: 0.1em;
     text-align: center;
     padding: 20px 40px;
-    max-width: 50%;
     border: 2px solid #000;
   }
   #status.show .label { animation: labelIn 0.5s ease; }
@@ -128,7 +252,7 @@
     bottom: calc(env(safe-area-inset-bottom, 0px) + 44px);
     display: none;
     z-index: 10;
-    max-width: min(300px, calc(100vw - 20px));
+    max-width: min(340px, calc(100vw - 20px));
     padding: 12px 14px;
     background: #fff;
     border: 1px solid #ddd;
@@ -180,6 +304,15 @@
     word-break: break-all;
   }
   #logView.show { display: block; }
+  /* Le journal doit rester lisible pendant que le loader bloque l'app. */
+  #logView {
+    position: fixed;
+    z-index: 9000;
+    inset: 8% 10% auto 10%;
+    max-height: 70vh;
+    border: 1px solid #0f0;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  }
   @keyframes panelIn {
     from { opacity: 0; transform: translateY(8px); }
     to   { opacity: 1; transform: translateY(0); }
@@ -188,10 +321,217 @@
     from { opacity: 1; transform: translateY(0); }
     to   { opacity: 0; transform: translateY(8px); }
   }
-  .cursor-blink { animation: loaderBlink 1s steps(1) infinite; }
+  .cursor-blink { animation: loaderBlink 0.75s steps(1) infinite; }
   @keyframes loaderBlink { 50% { opacity: 0; } }
 
-  /* ---------- LOADER / BOOT (cosmétique uniquement, plus de chargement réel) ---------- */
+  /* ---------- panneau de connexion ---------- */
+  body.booting #main,
+  body.booting #settings,
+  body.booting #status { display: none; }
+  #gate {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    display: none;
+    background: #fff;
+    overflow: auto;
+  }
+  body.booting #gate { display: flex; }
+  #gate-inner {
+    margin: auto;
+    width: 100%;
+    max-width: 420px;
+    padding: 24px 20px 40px;
+    text-align: left;
+  }
+  #gate h1 {
+    margin: 0;
+    font-size: clamp(1.3em, 7vw, 2em);
+    font-weight: normal;
+    text-transform: uppercase;
+    letter-spacing: 0.3em;
+  }
+  #gate-sub {
+    display: block !important;
+    margin: 6px 0 0;
+    color: #888;
+    font-size: clamp(0.55em, 3vw, 0.7em);
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+  }
+  #gateLog {
+    height: 3.4em;
+    margin: 14px 0 0;
+    overflow: hidden;
+    color: #999;
+    font-size: clamp(0.5em, 2.6vw, 0.62em);
+    line-height: 1.35;
+    letter-spacing: 0.05em;
+  }
+  #gateLog div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #gateLog div:last-child { color: #000; }
+  #gateProviders {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+    gap: 6px;
+    margin: 18px 0 4px;
+  }
+  #gateProviders button {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 4px;
+    background: none;
+    color: #888;
+    border: 1px solid #ddd;
+    font-family: inherit;
+    font-size: clamp(0.5em, 2.4vw, 0.6em);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+  }
+  #gateProviders button.active {
+    color: #fff;
+    background: #000;
+    border-color: #000;
+  }
+  /* Le logo du fournisseur garde sa couleur de marque quand il n'est pas
+     selectionne ; en actif il prend la couleur du fond, posee par le theme. */
+  #gateProviders button.active svg { color: #fff; }
+  body.dark #gateProviders button.active svg { color: #0B0B0C; }
+  #gateForm label {
+    display: block;
+    margin: 14px 0 4px;
+    color: #888;
+    font-size: clamp(0.5em, 2.4vw, 0.6em);
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+  }
+  /* Liste de modeles : un vrai menu, pas une auto-completion. Le relative sur
+     le wrapper permet de la poser sous le champ sans perturbation du flux. */
+  #gateModelWrap { position: relative; }
+  #gateForm select,
+  #gateForm input,
+  #gateForm #gateModel {
+    width: 100%;
+    padding: 8px 9px;
+    background: #fff;
+    color: #000;
+    border: 1px solid #888;
+    font-family: inherit;
+    font-size: clamp(0.6em, 3vw, 0.75em);
+  }
+  #gateModelList {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 30;
+    /* Hauteur limitee a neuf lignes puis defilement : sinon le bouton de
+       connexion sortait de l'ecran avec le catalogue complet d'OpenRouter. */
+    max-height: 232px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background: #fff;
+    border: 1px solid #000;
+    border-top: none;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+  }
+  #gateModelList[hidden] { display: none; }
+  #gateModelList .model-item {
+    display: block;
+    padding: 7px 9px;
+    color: #000;
+    font-size: clamp(0.58em, 2.9vw, 0.72em);
+    line-height: 1.35;
+    /* Un seul mot sur une ligne : les identifiants de modele n'ont pas de
+       point de coupure naturel. */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  #gateModelList .model-item:last-child { border-bottom: none; }
+  #gateModelList .model-item.active { background: #000; color: #fff; }
+  #gateModelList .model-item .hl {
+    color: #F00;
+    font-weight: normal;
+  }
+  #gateModelList .model-item.active .hl { color: #fff; }
+  /* Le focus passe au rouge, comme les libelles du formulaire : ca donne un
+     fil rouge entre l'interface et la connexion. */
+  #gateForm select:focus,
+  #gateForm input:focus {
+    outline: none;
+    border-color: #F00;
+    box-shadow: 0 0 0 1px #F00;
+  }
+  #gateForm input::placeholder { color: #bbb; }
+  #gateKeyRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 6px;
+    font-size: clamp(0.5em, 2.4vw, 0.58em);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  #gateKeyState { color: #999; }
+  #gateKeyState.ok { color: #F00; }
+  #gateKeyLink {
+    color: #888;
+    text-decoration: none;
+    border-bottom: 1px solid #ccc;
+  }
+  #gateKeyLink:hover { color: #F00; border-color: #F00; }
+  #gateForm button[type="submit"] {
+    width: 100%;
+    margin-top: 20px;
+    padding: 12px 0;
+    background: #000;
+    color: #fff;
+    border: 1px solid #000;
+    font-family: inherit;
+    font-size: clamp(0.6em, 3vw, 0.7em);
+    text-transform: uppercase;
+    letter-spacing: 0.25em;
+    cursor: pointer;
+  }
+  #gateForm button[type="submit"]:disabled {
+    background: #fff;
+    color: #999;
+    border-color: #ddd;
+    cursor: default;
+  }
+  #gateThemeBtn {
+    display: block;
+    width: 100%;
+    margin-top: 14px;
+    padding: 8px 0;
+    background: none;
+    color: #888;
+    border: 1px solid #ddd;
+    font-family: inherit;
+    font-size: clamp(0.5em, 2.4vw, 0.6em);
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    cursor: pointer;
+  }
+  #gateThemeBtn:hover { color: #F00; border-color: #F00; }
+  body.dark #gateThemeBtn { color: #8A8A90; border-color: #2A2A2E; }
+  body.dark #gateThemeBtn:hover { color: #F00; border-color: #F00; }
+
+  #gate-outro {
+    margin-top: 10px;
+    color: #888;
+    font-size: clamp(0.5em, 2.4vw, 0.58em);
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+  }
+
   #loader {
     position: fixed;
     top: 0;
@@ -221,21 +561,6 @@
     border-color: transparent;
     transition: transform 1s cubic-bezier(0.77, 0, 0.18, 1), border-color 0.3s ease 0.5s;
   }
-  #loader-left::after,
-  #loader-right::after {
-    content: "";
-    position: absolute;
-    width: 8px;
-    height: 8px;
-    background: #000;
-    z-index: 4;
-    box-shadow:
-      0 24vh 0 0 #000,
-      0 48vh 0 0 #000,
-      0 72vh 0 0 #000;
-  }
-  #loader-left::after  { top: 12vh; right: -10px; }
-  #loader-right::after { top: 12vh; left: -10px; }
   .loader-pane .cnr {
     position: absolute;
     width: 18px;
@@ -298,7 +623,13 @@
   @keyframes cursorBlink { 50% { opacity: 0; } }
   #loader.open #boot-log { animation: logFadeIn 0.6s ease 0.2s forwards; }
   @keyframes logFadeIn { from { opacity: 0; } to { opacity: 1; } }
-  #loading-pane-container { text-align: center; opacity: 0; }
+  #loading-pane-container {
+    opacity: 0;
+    width: clamp(240px, 36vw, 440px);
+    padding: 0;
+    text-align: left;
+    flex: 0 0 auto;
+  }
   #loader.open #loading-pane-container { animation: pulseIn 0.7s ease 0.35s forwards; }
   @keyframes pulseIn {
     0%   { opacity: 0; }
@@ -314,22 +645,26 @@
     background: #000;
     color: #fff;
     padding: 3px 8px;
-    letter-spacing: 0.2em;
-    font-size: clamp(0.5em, 2.5vw, 0.6em);
+    letter-spacing: 0.1em;
+    font-size: 1.1rem;
   }
   #loading-name {
-    font-size: clamp(0.7em, 3.5vw, 1.1em);
-    margin: 12px 0 10px;
+    font-size: 1.2rem;
     color: #000;
     min-height: 1.2em;
+    margin : 2px 0 0 0;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    font-weight: 550;
   }
   #loading-bar-container {
-    width: min(70%, 460px);
-    margin: 0 auto;
+    width: 100%;
+    margin: 0;
     border: 2px solid #000;
     padding: 2px;
-    height: 18px;
+    height: 36px;
     box-sizing: border-box;
+    flex: none;
   }
   #loading-bar {
     position: relative;
@@ -337,14 +672,22 @@
     height: 100%;
     width: 0;
     overflow: hidden;
-    transition: width 0.25s ease-out;
+    transition: width 0.12s linear;
+    will-change: width;
   }
   #loading-connected {
     position: absolute;
     top: 50%; left: 0;
     width: 100%;
     transform: translateY(-50%);
+    /* Flex + justify-content center : le bloc noir se recadre sur la largeur
+       reelle du texte au lieu d'etre limite a une largeur fixe, ce qui tronquait
+       "established" sur petit ecran. */
+    display: flex;
+    justify-content: center;
+    align-items: center;
     text-align: center;
+    padding: 0 12px;
     opacity: 0;
     pointer-events: none;
   }
@@ -352,16 +695,126 @@
   #loading-connected.hide { opacity: 0; }
   #loading-connected .label {
     display: inline-block;
+    /* Une seule ligne, quelle que soit la largeur de l'ecran : "connection
+       established" ne doit jamais se replier. */
+    white-space: nowrap;
+    width: fit-content;
+    max-width: none;
     background: #000;
     color: #fff;
     font-family: "magdacleanmono", "Courier New", monospace;
-    font-size: clamp(1.2em, 6vw, 2.4em);
+    /* La taille suit la largeur disponible : sur un telephone le texte reste
+       entier sur une ligne au lieu de deborder. */
+    font-size: clamp(0.8em, 5.4vw, 2.4em);
     text-transform: uppercase;
     letter-spacing: 0.1em;
     padding: 20px 40px;
-    max-width: min(82vw, 560px);
     border: 2px solid #000;
   }
   #loading-connected.show .label { animation: labelIn 0.5s ease; }
   #loading-connected.hide .label { animation: labelOut 0.5s ease forwards; }
   #loading-connected.error .label { background: #F00; }
+
+  /* ---------- thème sombre ---------- */
+  /* Le thème couvre toute l'application : ecran de connexion, chargement et
+     interface. Le choix est persiste dans localStorage, donc il survit au
+     rechargement. */
+  body.dark {
+    color: #EDEDED;
+    background-color: #0B0B0C;
+  }
+  body.dark #main hr { border-top-color: #EDEDED; }
+  /* Le texte cache doit rester lisible en theme sombre. */
+  body.dark #main p.hidden { color: #0B0B0C; }
+  body.dark #settings { color: #888; }
+  body.dark #settings:hover { color: #F00; }
+  body.dark #panel {
+    background: #131315;
+    border-color: #2A2A2E;
+    box-shadow: 0 2px 18px rgba(0, 0, 0, 0.6);
+  }
+  body.dark #panel h1 { color: #7A7A80; }
+  body.dark #panel p { color: #EDEDED; }
+  body.dark #panel button {
+    color: #EDEDED;
+    border-color: #44444A;
+  }
+  body.dark #panel button:hover { background: #222226; }
+  body.dark #panel button.active {
+    background: #EDEDED;
+    color: #0B0B0C;
+    border-color: #EDEDED;
+  }
+  body.dark #logView { background: #000; }
+  /* La popup d'etat garde son noir historique, seul le contour change. */
+  body.dark #status .label { border-color: #EDEDED; }
+
+  /* ---- ecran de connexion ---- */
+  body.dark #gate { background: #0B0B0C; }
+  body.dark #gate h1 { color: #EDEDED; }
+  body.dark #gate-sub,
+  body.dark #gateForm label,
+  body.dark #gate-outro { color: #7A7A80; }
+  body.dark #gateLog { color: #5C5C62; }
+  body.dark #gateLog div:last-child { color: #EDEDED; }
+  body.dark #gateProviders button { color: #8A8A90; border-color: #2A2A2E; }
+  body.dark #gateProviders button:hover { background: #161618; }
+  body.dark #gateProviders button.active {
+    background: #EDEDED;
+    color: #0B0B0C;
+    border-color: #EDEDED;
+  }
+  body.dark #gateProviders button.active svg { color: #0B0B0C; }
+  body.dark #gateForm select,
+  body.dark #gateForm input {
+    background: #131315;
+    color: #EDEDED;
+    border-color: #3A3A40;
+  }
+  body.dark #gateForm input::placeholder { color: #5C5C62; }
+  body.dark #gateModelList {
+    background: #131315;
+    border-color: #4A4A52;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7);
+  }
+  body.dark #gateModelList .model-item { color: #D8D8DE; border-bottom-color: #232327; }
+  body.dark #gateModelList .model-item.active { background: #EDEDED; color: #0B0B0C; }
+  body.dark #gateModelList .model-item .hl { color: #F00; }
+  body.dark #gateModelList .model-item.active .hl { color: #0B0B0C; }
+  body.dark #gateKeyState.ok { color: #F00; }
+  body.dark #gateForm button[type="submit"] {
+    background: #EDEDED;
+    color: #0B0B0C;
+    border-color: #EDEDED;
+  }
+  body.dark #gateForm button[type="submit"]:disabled {
+    background: #161618;
+    color: #5C5C62;
+    border-color: #2A2A2E;
+  }
+
+  /* ---- ecran de chargement ---- */
+  body.dark #loader { background: #000; }
+  body.dark .loader-pane {
+    background: #0B0B0C;
+    border-color: #4A4A52;
+  }
+  body.dark #loader-left  { border-right-color: #4A4A52; }
+  body.dark #loader-right { border-left-color: #4A4A52; }
+  /* Coins des deux panneaux, dessines avec des bordures : meme valeur. */
+  body.dark .loader-pane .cnr.t,
+  body.dark .loader-pane .cnr.b { border-color: #4A4A52; }
+  body.dark #boot-log { color: #8A8A92; }
+  body.dark .invert { background: #EDEDED; color: #0B0B0C; }
+  body.dark #loading-name { color: #EDEDED; }
+  body.dark #loading-bar-container { border-color: #6A6A74; }
+  body.dark #loading-bar { background: #EDEDED; }
+  /* "connection established" garde son aspect d'origine : texte blanc sur fond
+     noir, dans les deux themes. Inverser le contraste le rendait moins
+     lisible que le reste du loader. */
+  body.dark #loading-connected .label {
+    background: #000;
+    color: #fff;
+    border-color: #6A6A74;
+  }
+  body.dark #loading-connected.error .label { background: #F00; color: #fff; border-color: #F00; }
