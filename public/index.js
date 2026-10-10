@@ -1,53 +1,42 @@
-(() => {
-  "use strict";
-(() => {
-  "use strict";
-  const GROQ_API_KEY = "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";
-  const GROQ_MODEL = "llama-3.1-8b-instant"; // rapide, largement au-dessus d'1B en qualité, tourne côté serveur Groq
-  const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
+"use strict";
 
-  const LANG = `${navigator.language}-${navigator.language.toLocaleUpperCase()}`; // Detecte automatiquement la langue de l'utilisateur.
-  const WORD_DELAY_MS = 400;
-  const FADE_MS = 150;
+const LANG = navigator.language || "fr-FR"; // Langue dÃ©tectÃ©e automatiquement.
+const WORD_DELAY_MS = 500;
+const FADE_MS = 100;
 
-  modelNameEl_init();
-  function modelNameEl_init() {}
-  const devLog = [];
-  function logDev(level, args) {
+const devLog = [];
+const rawLog = console.log.bind(console);
+console.log = function() {
+    let line = "";
     try {
-      const line = "[" + new Date().toISOString().slice(11, 19) + "] " + level + " " +
-        Array.from(args).map(a => {
-          if (a == null) return String(a);
-          if (typeof a === "object") {
-            const m = a.message != null ? a.message : (a.stack ? a.stack.split("\n")[0] : "");
-            return m || JSON.stringify(a).slice(0, 200);
-          }
-          return String(a);
-        }).join(" ");
+      line = Array.from(arguments).map(a => {
+        if (a == null) return String(a);
+        if (typeof a === "object") {
+          const m = a.message != null ? a.message : (a.stack ? a.stack.split("\n")[0] : "");
+          return m || JSON.stringify(a).slice(0, 200);
+        }
+        return String(a);
+      }).join(" ");
       devLog.push(line);
       if (devLog.length > 300) devLog.shift();
+      try { localStorage.setItem("samaritain.log", devLog.slice(-80).join("\n")); } catch (e) {}
     } catch (e) {}
-  }
-  ["log", "warn", "error"].forEach(m => {
-    const orig = console[m].bind(console);
-    console[m] = function() {
-      try { logDev(m, arguments); } catch (e) {}
-      orig.apply(null, arguments);
-    };
-  });
-  window.addEventListener("error", (e) => { logDev("script", [e.message]); });
-  window.addEventListener("unhandledrejection", (e) => { logDev("rejection", [e.reason]); });
+    rawLog.apply(null, arguments);
+  };
+  window.addEventListener("error", (e) => { console.log("[script] " + e.message); });
+  window.addEventListener("unhandledrejection", (e) => { console.log("[rejection] " + String(e.reason)); });
 
-  const textEl      = document.getElementById("text");
-  const barEl       = document.getElementById("bar");
-  const bodyEl      = document.body;
-  const panelEl     = document.getElementById("panel");
-  const modelNameEl = document.getElementById("modelName");
-  const mainEl      = document.getElementById("main");
-  const statusEl    = document.getElementById("status");
-  const statusLabelEl = document.querySelector("#status .label");
-
-  modelNameEl.textContent = GROQ_MODEL + " (API)";
+const textEl = document.getElementById("text");
+const barEl = document.getElementById("bar");
+const bodyEl = document.body;
+const panelEl       = document.getElementById("panel");
+const modelNameEl   = document.getElementById("modelName");
+const mainEl        = document.getElementById("main");
+const markerEl      = document.getElementById("marker");
+const dotsEl        = document.querySelector("#marker .dots");
+const triangleEl    = document.getElementById("triangle");
+const statusEl      = document.getElementById("status");
+const statusLabelEl = document.querySelector("#status .label");
 
   let recognition = null;
   let isBusy = false;
@@ -57,7 +46,7 @@
   let retryIndex = 0;
   const RETRY_DELAYS = [300, 1000, 2000, 3500];
 
-  function measureTextWidth(text) {
+function measureTextWidth(text) {
     const cs = getComputedStyle(textEl);
     const span = document.createElement("span");
     span.style.position = "absolute";
@@ -73,7 +62,7 @@
     const w = span.getBoundingClientRect().width;
     span.remove();
     return w;
-  }
+}
 
   function setText(str) {
     const has = !!(str && str.length);
@@ -97,12 +86,14 @@
   }
   function showThinkingStatus() {
     if (statusHideTimer) { clearTimeout(statusHideTimer); statusHideTimer = null; }
-    statusEl.classList.remove("show", "hide");
-    statusLabelEl.textContent = "calculating response";
-    void statusEl.offsetWidth;
-    statusEl.classList.add("show");
+    if (dotsEl) dotsEl.hidden = false;
+    textEl.classList.remove("hidden");
+    textEl.textContent = "calculating response";
+    barEl.style.width = Math.min(measureTextWidth(textEl.textContent), mainEl.clientWidth) + "px";
+    playWordAnim("word-in");
   }
   function hideStatus() {
+    if (dotsEl) dotsEl.hidden = true;
     if (!statusEl.classList.contains("show")) return;
     statusEl.classList.add("hide");
     if (statusHideTimer) clearTimeout(statusHideTimer);
@@ -126,10 +117,60 @@
     textEl.classList.add(cls);
   }
 
+  let streamTimer = null;
+  let streamQueue = [];
+  let streamIndex = 0;
+  let streamStarted = false;
+  let lastWordCount = 0;
+  function playStreamedWords(trimmed) {
+    const words = trimmed.replace(/[^\p{L}\p{N}\s]/gu).split(/\s+/).filter(Boolean);
+    const newWords = words.slice(lastWordCount);
+    lastWordCount = words.length;
+    if (newWords.length === 0) return;
+    if (!streamStarted) {
+      streamStarted = true;
+      if (dotsEl) dotsEl.hidden = true;
+    }
+    for (const word of newWords) {
+      streamQueue.push(word);
+    }
+    if (streamTimer) return;
+    const step = () => {
+      if (streamIndex >= streamQueue.length) {
+        streamTimer = null;
+        return;
+      }
+      const word = streamQueue[streamIndex++];
+      textEl.classList.remove("hidden");
+      textEl.textContent = word;
+      barEl.style.width = Math.min(measureTextWidth(word), 50) + "px";
+      playWordAnim("word-in");
+      streamTimer = setTimeout(step, WORD_DELAY_MS);
+    };
+    streamTimer = setTimeout(step, 0);
+  }
+  function finishStreamedWords() {
+    return new Promise(resolve => {
+      const check = () => {
+        if (!streamTimer && streamIndex >= streamQueue.length) {
+          textEl.textContent = "\u00A0";
+          if (dotsEl) dotsEl.hidden = true;
+          textEl.classList.add("hidden");
+          barEl.style.width = "30px";
+          resolve();
+        } else {
+          setTimeout(check, 80);
+        }
+      };
+      check();
+    });
+  }
+
   async function speakWords(fullText) {
     const words = fullText.trim().split(/\s+/);
     for (let i = 0; i < words.length; i++) {
       textEl.classList.remove("hidden");
+      if (dotsEl) dotsEl.hidden = true;
       textEl.textContent = words[i];
       barEl.style.width = Math.min(measureTextWidth(words[i]), mainEl.clientWidth) + "px";
       playWordAnim("word-in");
@@ -142,9 +183,9 @@
     }
   }
 
-  // ---------- FAUX LOADER (cosmétique) ----------
-  // Ne charge plus rien de réel — c'est juste l'habillage visuel d'origine, rejoué
-  // sur une durée fixe minutée, sans lien avec un téléchargement ou un modèle.
+  // ---------- FAUX LOADER (cosmÃ©tique) ----------
+  // Ne charge rien de rÃ©el â€” c'est juste l'habillage visuel d'origine, rejouÃ©
+  // sur une durÃ©e fixe minutÃ©e, sans lien avec un tÃ©lÃ©chargement ou un modÃ¨le.
   const loaderEl        = document.getElementById("loader");
   const bootLogEl       = document.getElementById("boot-log");
   const loadingPaneEl   = document.getElementById("loading-pane-container");
@@ -159,21 +200,17 @@
     "feed_6 [ ]", "feed_7 [ ]", "feed_8 [ ]", "feed_9 [ ]"
   ];
   const RESOURCE_SEGMENTS = [
-    "resources.comm.archive", "resources.im.users", "resources.im.log", "resources.rin-im",
-    "resources.email.users", "resources.email.data", "resources.voip",
-    "resources.dsn-messaging", "resources.dsn-subscribers", "resources.web.users",
-    "resources.web.content", "resources.video.feeds", "resources.video.archive",
-    "resources.video.streams", "resources.audio.calls", "resources.audio.voicemail",
-    "resources.files.shares", "resources.files.sync", "resources.ftp.mirrors",
-    "resources.irc.logs", "resources.irc.servers", "resources.net.dns",
-    "resources.net.http", "resources.net.tor", "resources.grid.compute",
-    "resources.grid.storage", "resources.telecom.fiber", "resources.telecom.sat",
-    "resources.telecom.gsm", "linking.databases.sigint", "linking.databases.sigint.xxx-",
-    "linking.databases.crime", "linking.databases.finance", "nodes.satellite.up-link",
-    "nodes.satellite.down-link", "nodes.relay.a-01", "nodes.relay.b-07", "nodes.relay.c-11",
-    "feeds.monitor.heartbeat", "feeds.monitor.alerts", "feeds.monitor.geo",
-    "security.keys", "security.access.log", "security.cameras", "security.intel"
-  ];
+	"resources.comm.archive",	"resources.im.users", "resources.im.log",
+	"resources.rin-im",	"resources.email.users", "resources.email.data",
+	"resources.voip",	"resources.dsn-messaging", "resources.dsn-subscribers",
+	"resources.web.users", "resources.web.content",	"resources.video.feeds",
+	"resources.video.archive",	"linking.databases.sigint.xxx-",	"linking.databases.sigint.xxx-100",
+	"linking.databases.sigint.xxx-140",	"linking.databases.sigint.xxx-154",	"linking.databases.sigint.xxx-194",
+	"linking.databases.sigint.xxx-207",	"linking.databases.sigint.xxx-248",	"linking.databases.sigint.xxx-274",
+	"linking.databases.sigint.xxx-301",	"linking.databases.sigint.xxx-342",	"linking.databases.sigint.xxx-400",
+	"linking.databases.sigint.xxx-449",	"linking.databases.sigint.xxx-560",	"linking.databases.sigint.xxx-631",
+	"linking.databases.sigint.xxx-798",	"linking.databases.sigint.xxx-830",	"linking.databases.sigint.xxx-904",
+	"linking.databases.sigint.xxx-999"];
 
   function randomResourceName() {
     const seg = RESOURCE_SEGMENTS[Math.floor(Math.random() * RESOURCE_SEGMENTS.length)];
@@ -253,17 +290,15 @@
     if (typeTimer) { clearInterval(typeTimer); typeTimer = null; }
   }
 
-  let lastResPct = -1;
   function bootLoader() {
     stopResourceStream();
     loaderEl.classList.remove("open", "done", "finishing");
     bootLogEl.innerHTML = "";
     logLineCount = 0;
-    lastResPct = -1;
-    loadingBarEl.style.width = "0%";
-    loadingNameEl.textContent = "initialisation…";
+    setLoaderProgressNow(0);
+    loadingNameEl.textContent = "initialisation...";
     connectedEl.style.display = "none";
-    connectedEl.classList.remove("show", "hide");
+    connectedEl.classList.remove("show", "hide", "error");
     loadingPaneEl.style.opacity = "";
     loaderEl.style.display = "flex";
     requestAnimationFrame(() => {
@@ -271,53 +306,141 @@
     });
     startResourceStream();
   }
+  // La barre est animÃ©e par interpolation, pas par sauts : chaque ressource ne
+  // fait que fixer une nouvelle cible, et une boucle requestAnimationFrame
+  // rapproche la largeur de cette cible Ã  vitesse constante. Sans Ã§a, un dÃ©lai
+  // de 600 ms puis un de 140 ms donnaient deux bonds secs, trÃ¨s visibles.
+  let targetPct = 0;
+  let shownPct = 0;
+  let easeFrame = 0;
   function setLoaderProgress(pct) {
-    pct = Math.min(100, Math.max(0, pct));
-    loadingBarEl.style.width = pct + "%";
-    const bucket = Math.floor(pct / 4);
-    if (bucket !== lastResPct) {
-      lastResPct = bucket;
-      loadingNameEl.textContent = randomResourceName();
-    }
+    targetPct = Math.min(100, Math.max(0, pct));
+    if (easeFrame) return;
+    const speed = Math.max(0.35, Math.min(2.2, (targetPct - shownPct) / 12));
+    easeFrame = requestAnimationFrame(function ease() {
+      const diff = targetPct - shownPct;
+      // Asymptotique : la barre s'approche de la cible sans jamais l'atteindre
+      // brutalement, ce qui supprime tout Ã -coup.
+      shownPct += diff * 0.12 * speed;
+      if (Math.abs(diff) < 0.15) {
+        shownPct = targetPct;
+        easeFrame = 0;
+      } else {
+        easeFrame = requestAnimationFrame(ease);
+      }
+      loadingBarEl.style.width = shownPct.toFixed(2) + "%";
+    });
   }
-  async function finishLoader() {
+  function setLoaderProgressNow(pct) {
+    targetPct = shownPct = Math.min(100, Math.max(0, pct));
+    loadingBarEl.style.width = shownPct + "%";
+  }
+  function showResourceName(name) {
+    loadingNameEl.textContent = name;
+  }
+  async function dismissLoader(fast) {
+    connectedEl.classList.remove("show");
+    connectedEl.classList.add("hide");
+    await sleep(fast ? 150 : 500);
+    connectedEl.classList.remove("hide", "error");
+    loaderEl.classList.add("done");
+    await sleep(fast ? 450 : 1200);
+    loaderEl.style.display = "none";
+    loaderEl.classList.remove("open", "done", "finishing");
+  }
+  async function finishLoader(fast) {
     stopResourceStream();
+    stopFakeTimer();
     const cursor = bootLogEl.querySelector(".boot-cursor");
     if (cursor) cursor.remove();
     for (let i = 0; i < 6; i++) appendBootLine(randomBootLine());
-    loadingBarEl.style.width = "100%";
-    loadingNameEl.textContent = randomResourceName();
+    setLoaderProgressNow(100);
     loaderEl.classList.add("finishing");
     connectedEl.style.display = "block";
     connectedTextEl.textContent = "connection established";
     connectedEl.classList.add("show");
-    await sleep(1400);
-    connectedEl.classList.remove("show");
-    connectedEl.classList.add("hide");
-    await sleep(500);
-    connectedEl.classList.remove("hide");
-    loaderEl.classList.add("done");
-    await sleep(1200);
-    loaderEl.style.display = "none";
-    loaderEl.classList.remove("open", "done");
+    await sleep(fast ? 600 : 1400);
+    await dismissLoader(fast);
   }
 
+  function runProgress(durationMs) {
+    return new Promise(resolve => {
+      const start = performance.now();
+      function frame(now) {
+        const t = Math.min(1, (now - start) / durationMs);
+        setLoaderProgress(t * 100);
+        if (t < 1) requestAnimationFrame(frame);
+        else resolve();
+      }
+      requestAnimationFrame(frame);
+    });
+  }
+
+  // Le loader est dÃ©sormais une simulation : plus aucun modÃ¨le local Ã 
+  // tÃ©lÃ©charger. On parcourt une liste de ressources fictives, chacune avec un
+  // Delais randomises, pour que la sequence ne soit jamais identique d'un
+  // lancement a l'autre.
+  const FAKE_MIN_MS = 280;
+  const FAKE_MAX_MS = 1240;
+  let fakeTimer = null;
+  function stopFakeTimer() {
+    if (fakeTimer) { clearTimeout(fakeTimer); fakeTimer = null; }
+  }
+  function randomDelay() {
+    return FAKE_MIN_MS + Math.floor(Math.random() * (FAKE_MAX_MS - FAKE_MIN_MS));
+  }
+  // MÃ©lange la liste pour que l'ordre des ressources change Ã  chaque run, avec
+  // un dÃ©calage alÃ©atoire sur les dÃ©lais.
+  function buildFakeSteps() {
+    const steps = RESOURCE_SEGMENTS.slice();
+    for (let i = steps.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const t = steps[i];
+      steps[i] = steps[j];
+      steps[j] = t;
+    }
+    return steps.slice(0, 24).map(name => ({ name: name, delay: randomDelay() }));
+  }
+  function runFakeLoader(steps, onDone) {
+    let i = 0;
+    const total = steps.length;
+    const totalDelay = steps.reduce((a, s) => a + s.delay, 0);
+    let elapsed = 0;
+    function step() {
+      if (i >= total) {
+        setLoaderProgress(100);
+        // On laisse la barre rejoindre 100 % avant de conclure, sinon elle est
+        // coupÃ©e en cours de route.
+        setTimeout(onDone, 420);
+        return;
+      }
+      const s = steps[i++];
+      elapsed += s.delay;
+      // La cible avance par paliers egaux, l'interpolation fait le reste.
+      setLoaderProgress((elapsed / totalDelay) * 100);
+      showResourceName(s.name);
+      fakeTimer = setTimeout(step, s.delay);
+    }
+    step();
+  }
   async function playFakeLoader() {
     bootLoader();
-    // Barre de progression minutée sur ~2,2s, aucun lien avec un vrai téléchargement.
-    const DURATION_MS = Math.floor(Math.random()*10000);
-    const STEPS = 40;
-    for (let i = 0; i <= STEPS; i++) {
-      setLoaderProgress((i / STEPS) * 100);
-      await sleep(DURATION_MS / STEPS);
-    }
-    await finishLoader();
+    const steps = buildFakeSteps();
+    console.log("[info] " + ["[loader] simulation, " + steps.length + " ressources"].join(" "));
+    await new Promise(resolve => {
+      runFakeLoader(steps, () => { stopFakeTimer(); resolve(); });
+    });
+    await finishLoader(false);
+    return true;
+  }
+  async function replayLoader() {
+    await playFakeLoader();
   }
 
   function initRecognition() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      showStatus("Reconnaissance vocale non supportée");
+      showStatus("Reconnaissance vocale non supportÃ©e");
       return null;
     }
     const rec = new SpeechRecognition();
@@ -342,11 +465,11 @@
       lastTranscript = "";
       setMode("listening");
       setText("");
-      logDev("info", ["[stt] start"]);
+      console.log("[info] " + ["[stt] start"].join(" "));
       if (silenceTimer) clearTimeout(silenceTimer);
       if (totalTimer) clearTimeout(totalTimer);
       totalTimer = setTimeout(() => {
-        logDev("warn", ["[stt] timeout total"]);
+        console.log("[warn] " + ["[stt] timeout total"].join(" "));
         stopRec();
       }, TOTAL_MS);
     };
@@ -358,33 +481,33 @@
           const res = event.results[i];
           if (res.isFinal) {
             lastTranscript = res[0].transcript.trim();
-            logDev("info", ["[stt] final=" + lastTranscript]);
+            console.log("[info] " + ["[stt] final=" + lastTranscript].join(" "));
           } else {
             text += res[0].transcript;
           }
         }
       } catch (e) {
-        logDev("warn", ["[stt] result absent", e]);
+        console.log("[warn] " + ["[stt] result absent", e].join(" "));
       }
 
       if (lastTranscript) {
         setText(lastTranscript);
         retryIndex = 0;
-        logDev("info", ["[stt] fin au résultat final"]);
+        console.log("[info] " + ["[stt] fin au rÃ©sultat final"].join(" "));
         stopRec();
       } else {
         text = text.trim();
         if (text) setText(text);
         if (silenceTimer) clearTimeout(silenceTimer);
         silenceTimer = setTimeout(() => {
-          logDev("info", ["[stt] fin par silence"]);
+          console.log("[info] " + ["[stt] fin par silence"].join(" "));
           stopRec();
         }, SILENCE_MS);
       }
     };
 
     rec.onerror = (e) => {
-      logDev("warn", ["[stt] error=" + (e && e.error)]);
+      console.log("[warn] " + ["[stt] error=" + (e && e.error)].join(" "));
       stopRec();
       isBusy = false;
       lastTranscript = "";
@@ -397,7 +520,7 @@
       if (totalTimer) { clearTimeout(totalTimer); totalTimer = null; }
       const transcript = lastTranscript || textEl.textContent.trim();
       lastTranscript = "";
-      logDev("info", ["[stt] onend transcript='" + transcript + "'"]);
+      console.log("[info] " + ["[stt] onend transcript='" + transcript + "'"].join(" "));
       if (transcript) {
         await queryModel(transcript);
       } else {
@@ -407,7 +530,7 @@
         if (retryIndex < RETRY_DELAYS.length) {
           const d = RETRY_DELAYS[retryIndex];
           retryIndex++;
-          logDev("warn", ["[stt] rien entendu, retry dans " + d + " ms"]);
+          console.log("[warn] " + ["[stt] rien entendu, retry dans " + d + " ms"].join(" "));
           setTimeout(() => { startListening(true); }, d);
         } else {
           retryIndex = 0;
@@ -430,25 +553,25 @@
         navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
           stream.getTracks().forEach(t => t.stop());
           audioPrimed = true;
-          logDev("info", ["[stt] micro primé"]);
+          console.log("[info] " + ["[stt] micro primÃ©"].join(" "));
         }),
         sleep(1500)
       ]);
     } catch (e) {
-      logDev("warn", ["[stt] prime micro refusée", e]);
+      console.log("[warn] " + ["[stt] prime micro refusÃ©e", e].join(" "));
     }
   }
 
   async function startListening(auto = false) {
     if (isBusy) {
-      logDev("warn", ["[stt] bloqué: occupation"]);
+      console.log("[warn] " + ["[stt] bloquÃ©: occupation"].join(" "));
       return;
     }
     if (!auto) retryIndex = 0;
     if (!recognition) recognition = initRecognition();
     if (!recognition) return;
     await primeAudio();
-    try { recognition.start(); } catch (e) { logDev("warn", ["[stt] start throw", e]); }
+    try { recognition.start(); } catch (e) { console.log("[warn] " + ["[stt] start throw", e].join(" ")); }
   }
 
   function describeError(e) {
@@ -460,55 +583,517 @@
     return String(e);
   }
 
-  async function queryModel(promptText) {
-    setMode("thinking");
-    setText("");
-    logDev("info", ["[gen] demande='" + promptText + "'"]);
-    showThinkingStatus();
+// ---------- FOURNISSEURS API ----------
+  const CONFIG_KEY = "samaritain.config";
+  const gateEl = document.getElementById("gate");
+  const gateLogEl = document.getElementById("gateLog");
+  const gateProvidersEl = document.getElementById("gateProviders");
+  const gateFormEl = document.getElementById("gateForm");
+  // Le champ modele est un <input list> et non un <select> : c'est la seule
+  // facon native de filtrer une liste de plusieurs centaines d'entrees. Les
+  // <option> vivent dans le <datalist>, le champ affiche et stocke le texte.
+  const gateModelSel = document.getElementById("gateModel");
+  const gateModelListEl = document.getElementById("gateModelList");
+  const gateModelCountEl = document.getElementById("gateModelCount");
+  const gateKeyInput = document.getElementById("gateKey");
+  const gateKeyStateEl = document.getElementById("gateKeyState");
+  const gateKeyLinkEl = document.getElementById("gateKeyLink");
+  const gateSubmitEl = document.getElementById("gateSubmit");
+  const changeProviderBtn = document.getElementById("changeProviderBtn");
 
+  let currentProviderId = "openai";
+  let config = { provider: "openai", model: "", apiKey: "" };
+
+  function loadConfig() {
     try {
-      const res = await fetch(GROQ_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer " + GROQ_API_KEY
-        },
-        body: JSON.stringify({
-          model: GROQ_MODEL,
-          messages: [
-            { role: "system", content: "Tu es Samaritain, une IA. Tu dois répondre le plus directement et clairement possible, en une phrase maximum, sujet verbe complément. Ne développe pas, sois le plus direct possible." },
-            { role: "user", content: promptText }
-          ],
-          max_tokens: 60,
-          temperature: 0.7
-        })
-      });
-
-      if (!res.ok) {
-        const errText = await res.text().catch(() => "");
-        throw new Error("HTTP " + res.status + " " + errText.slice(0, 150));
+      const raw = localStorage.getItem(CONFIG_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw);
+        if (saved && PROVIDERS[saved.provider]) {
+          config = {
+            provider: saved.provider,
+            model: String(saved.model || ""),
+            apiKey: String(saved.apiKey || "")
+          };
+        }
       }
+    } catch (e) {}
+    currentProviderId = config.provider;
+  }
+  function saveConfig() {
+    try { localStorage.setItem(CONFIG_KEY, JSON.stringify(config)); } catch (e) {}
+  }
+  function isConfigured() {
+    return !!(config.apiKey && config.model);
+  }
+  function providerLabel() {
+    const p = PROVIDERS[config.provider];
+    return p ? p.label : config.provider;
+  }
 
-      const data = await res.json();
-      const full = (data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content || "").trim();
+  // Le panneau de connexion affiche un journal qui dÃ©file en continu, comme
+  // le loader, pour donner l'impression d'un vrai Ã©tablissement de session.
+  let gateLogLines = [];
+  function gateLog(line) {
+    gateLogLines.push(line);
+    if (gateLogLines.length > 3) gateLogLines.shift();
+    gateLogEl.innerHTML = "";
+    for (const l of gateLogLines) {
+      const d = document.createElement("div");
+      d.textContent = l;
+      gateLogEl.appendChild(d);
+    }
+  }
+  // Une entrÃ©e de connexion typique : dÃ©calage alÃ©atoire entre chaque ligne.
+  function gateLogSequence(items) {
+    let i = 0;
+    function next() {
+      if (i >= items.length) return;
+      gateLog(items[i++]);
+      setTimeout(next, 180 + Math.floor(Math.random() * 420));
+    }
+    next();
+  }
 
-      hideStatus();
-      setMode("");
-      logDev("info", ["[gen] réponse='" + full + "'"]);
-      if (full) {
-        await speakWords(full);
+  // Liste de repli, presente avant toute requete reseau. Passe par le meme
+  // chemin que la liste dynamique pour ne pas avoir deux formats a maintenir.
+  function fillGateModels() {
+    const p = PROVIDERS[currentProviderId];
+    if (!p.models.some(m => m.id === config.model)) {
+      config.model = p.models.length ? p.models[0].id : "";
+    }
+    renderModelOptions(p.models.map(m => m.id));
+  }
+
+  // Le catalogue figÃ© dans PROVIDERS n'est qu'un repli : on interroge le point
+  // de terminaison /models du fournisseur pour lister tout ce qu'il propose
+  // vraiment. Un modÃ¨le sorti hier est ainsi selectionnable sans toucher au
+  // code. Le cache evite de re-interroger a chaque ouverture du panneau.
+  const modelCache = new Map();
+  function cachedModels(id) {
+    try {
+      const raw = localStorage.getItem("samaritain.models." + id);
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (parsed && Array.isArray(parsed.ids) && parsed.ids.length) {
+        return { ids: parsed.ids, at: parsed.at || 0, fresh: false };
+      }
+    } catch (e) {}
+    return null;
+  }
+  function storeModels(id, ids) {
+    modelCache.set(id, ids);
+    try { localStorage.setItem("samaritain.models." + id, JSON.stringify({ ids: ids, at: Date.now() })); } catch (e) {}
+  }
+  // Six heures : assez pour ne pas marteler l'API, assez court pour voir sortir
+  // un nouveau modÃ¨le dans la journee.
+  const MODELS_TTL_MS = 6 * 60 * 60 * 1000;
+
+  // Liste complete du fournisseur courant, independante du filtre.
+  let allModelIds = [];
+  // Hauteur maximale de la liste affichee : au-dela, un scroll. Sans plafond,
+  // OpenRouter qui expose plusieurs centaines de modeles pushes le bouton de
+  // connexion hors de l'ecran.
+  const MODEL_LIST_MAX = 9;
+  let modelHits = [];
+  let modelCursor = -1;
+  function renderModelOptions(ids) {
+    allModelIds = ids.slice();
+    applyModelFilter();
+  }
+  function closeModelList() {
+    gateModelListEl.hidden = true;
+    gateModelListEl.innerHTML = "";
+    modelCursor = -1;
+  }
+  // OpenRouter expose plusieurs centaines de modeles : on filtre sur chaque
+  // frappe. Un mot sans resultat laisse la liste vide, l'utilisateur voit alors
+  // que sa saisie ne correspond a rien.
+  function applyModelFilter() {
+    const p = PROVIDERS[currentProviderId];
+    const keep = config.model;
+    const q = gateModelSel.value.trim().toLowerCase();
+    const hits = q
+      ? allModelIds.filter(id => id.toLowerCase().indexOf(q) !== -1)
+      : allModelIds;
+    modelHits = hits;
+
+    gateModelListEl.innerHTML = "";
+    if (hits.length) {
+      for (const id of hits) {
+        const row = document.createElement("span");
+        row.className = "model-item";
+        row.setAttribute("role", "option");
+        row.dataset.id = id;
+        // Avec une recherche active, seul le fragment pertinent est mis en
+        // avant, sinon on ne verrait pas ou porter la saisie.
+        if (q) row.innerHTML = highlightMatch(id, q);
+        else row.textContent = id;
+        gateModelListEl.appendChild(row);
+      }
+      gateModelListEl.hidden = false;
+    } else {
+      gateModelListEl.hidden = true;
+    }
+
+    if (gateModelCountEl) {
+      gateModelCountEl.textContent = allModelIds.length
+        ? "(" + (q ? hits.length + "/" + allModelIds.length : allModelIds.length) + ")"
+        : "";
+    }
+    if (hits.length) {
+      // Le modele deja choisi reste selectionne s'il passe le filtre, sinon on
+      // prend le premier resultat, plus utile qu'un champ vide.
+      if (hits.indexOf(keep) !== -1) {
+        config.model = keep;
       } else {
-        showStatus("Aucune réponse");
-        await sleep(2000);
-        hideStatus();
+        const fallback = p.models.find(m => hits.indexOf(m.id) !== -1);
+        config.model = fallback ? fallback.id : hits[0];
+      }
+      if (document.activeElement !== gateModelSel) gateModelSel.value = config.model;
+    }
+  }
+  // Met en valeur la sous-chaine sans passer par innerHTML sur une donnee
+  // distante : seul le texte du modele est insere, les balises viennent de nous.
+  function highlightMatch(id, q) {
+    const i = id.toLowerCase().indexOf(q);
+    if (i === -1) return escapeHtml(id);
+    return escapeHtml(id.slice(0, i))
+      + '<b class="hl">' + escapeHtml(id.slice(i, i + q.length)) + "</b>"
+      + escapeHtml(id.slice(i + q.length));
+  }
+  function escapeHtml(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+  function pickModel(id) {
+    if (!id) return;
+    config.model = id;
+    gateModelSel.value = id;
+    applyModelFilter();
+    closeModelList();
+    refreshModelName();
+  }
+
+  async function loadModelsFromProvider() {
+    const p = PROVIDERS[currentProviderId];
+    if (!p || !p.listModels) return;
+    const id = currentProviderId;
+
+    const cached = cachedModels(id);
+    if (cached) {
+      renderModelOptions(cached.ids);
+      gateLog("modÃ¨les: " + cached.ids.length + " (cache)");
+      if (Date.now() - cached.at < MODELS_TTL_MS) return;
+    }
+    if (!config.apiKey) {
+      gateLog("modÃ¨les: clÃ© requise pour la liste");
+      return;
+    }
+
+    gateModelSel.setAttribute("aria-busy", "true");
+    gateLog("modÃ¨les: interrogation " + p.label.toLowerCase() + "â€¦");
+    try {
+      const ids = await p.listModels({ apiKey: config.apiKey });
+      // Le fournisseur a pu repondre apres un changement de selection.
+      if (id !== currentProviderId) return;
+      const clean = ids.filter(Boolean).sort();
+      if (clean.length) {
+        storeModels(id, clean);
+        renderModelOptions(clean);
+        gateLog("modÃ¨les: " + clean.length + " disponibles");
+      } else {
+        gateLog("modÃ¨les: liste vide, repli sur la liste intÃ©grÃ©e");
       }
     } catch (err) {
-      hideStatus();
+      if (id !== currentProviderId) return;
+      console.log("[warn] " + ["[models] liste impossible", describeError(err)].join(" "));
+      // CORS bloque la plupart des appels /models depuis un navigateur : on
+      // garde la liste intÃ©grÃ©e plutÃ´t que de bloquer l'utilisateur.
+      gateLog("modÃ¨les: indisponible, liste intÃ©grÃ©e");
+    } finally {
+      if (id === currentProviderId) gateModelSel.removeAttribute("aria-busy");
+    }
+  }
+
+  function buildGateProviders() {
+    gateProvidersEl.innerHTML = "";
+    for (const id of Object.keys(PROVIDERS)) {
+      const p = PROVIDERS[id];
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = id === currentProviderId ? "active" : "";
+      btn.innerHTML = (PROVIDER_LOGOS[id] || "")
+        + "<span>" + p.label + "</span>";
+      // Couleur de marque appliquee au logo via currentColor, uniquement quand
+      // le bouton n'est pas selectionne. En actif, aucune couleur en ligne : le
+      // CSS impose le contraste, sinon la couleur inline gagnerait et le logo
+      // resterait invisible sur le fond clair du theme sombre.
+      if (id !== currentProviderId && PROVIDER_COLORS[id]) {
+        btn.querySelector("svg").style.color = PROVIDER_COLORS[id];
+      }
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        currentProviderId = id;
+        config.provider = id;
+        // Chaque service a sa propre clÃ© : on repart d'un champ vide plutÃ´t que
+        // de laisser une clÃ© d'un autre fournisseur dans l'input.
+        config.apiKey = "";
+        // La liste affichÃ©e appartient au fournisseur prÃ©cÃ©dent.
+        closeModelList();
+        gateModelSel.value = "";
+        fillGateModels();
+        updateGateKeyRow();
+        buildGateProviders();
+        refreshModelName();
+        gateLog("fournisseur: " + p.label.toLowerCase());
+      });
+      gateProvidersEl.appendChild(btn);
+    }
+  }
+
+  function updateGateKeyRow() {
+    const p = PROVIDERS[currentProviderId];
+    gateKeyLinkEl.href = p.keyUrl;
+    const has = !!config.apiKey;
+    gateKeyStateEl.textContent = has ? "clÃ© dÃ©tectÃ©e" : "clÃ© requise";
+    gateKeyStateEl.classList.toggle("ok", has);
+    gateKeyInput.value = config.apiKey;
+    gateSubmitEl.disabled = !has;
+  }
+  function refreshModelName() {
+    modelNameEl.textContent = providerLabel() + (config.model ? " / " + config.model : "");
+  }
+
+  function syncGate() {
+    currentProviderId = config.provider;
+    closeModelList();
+    fillGateModels();
+    updateGateKeyRow();
+    buildGateProviders();
+    refreshModelName();
+    loadModelsFromProvider();
+  }
+
+  // Retour au panneau de connexion : on masque l'app, on garde la config
+  // courante pour pouvoir la modifier.
+  function showGate() {
+    document.body.classList.add("booting");
+    gateEl.style.display = "flex";
+    syncGate();
+    gateLogSequence([
+      "session: nouvelle",
+      "fournisseur: " + providerLabel().toLowerCase(),
+      "en attente d'une clÃ©"
+    ]);
+  }
+  function hideGate() {
+    gateEl.style.display = "none";
+    document.body.classList.remove("booting");
+    closeModelList();
+  }
+
+  gateKeyInput.addEventListener("input", () => {
+    const val = gateKeyInput.value.trim();
+    config.apiKey = val;
+    const has = !!val;
+    gateKeyStateEl.textContent = has ? "clÃ© dÃ©tectÃ©e" : "clÃ© requise";
+    gateKeyStateEl.classList.toggle("ok", has);
+    gateSubmitEl.disabled = !has;
+  });
+
+  gateModelSel.addEventListener("input", (e) => {
+    e.stopPropagation();
+    applyModelFilter();
+    if (allModelIds.indexOf(gateModelSel.value) !== -1) {
+      config.model = gateModelSel.value;
+      refreshModelName();
+    }
+  });
+  gateModelListEl.addEventListener("mousedown", (e) => {
+    const row = e.target.closest ? e.target.closest(".model-item") : null;
+    if (!row) return;
+    e.preventDefault();
+    pickModel(row.dataset.id);
+  });
+  gateModelListEl.addEventListener("mousemove", (e) => {
+    const row = e.target.closest ? e.target.closest(".model-item") : null;
+    if (!row) return;
+    highlightModelRow(row.dataset.id);
+  });
+  function highlightModelRow(id) {
+    const rows = gateModelListEl.children;
+    modelCursor = -1;
+    for (let i = 0; i < rows.length; i++) {
+      const on = rows[i].dataset.id === id;
+      rows[i].classList.toggle("active", on);
+      if (on && rows[i].scrollIntoView) rows[i].scrollIntoView({ block: "nearest" });
+    }
+  }
+  gateModelSel.addEventListener("focus", () => {
+    if (allModelIds.length) {
+      gateModelSel.value = "";
+      applyModelFilter();
+    }
+  });
+  gateModelSel.addEventListener("blur", () => {
+    setTimeout(() => {
+      if (allModelIds.indexOf(gateModelSel.value) !== -1) {
+        config.model = gateModelSel.value;
+        refreshModelName();
+      } else gateModelSel.value = config.model;
+      closeModelList();
+    }, 120);
+  });
+  gateModelSel.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      if (!modelHits.length) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const dir = e.key === "ArrowDown" ? 1 : -1;
+      modelCursor = (modelCursor + dir + modelHits.length) % modelHits.length;
+      highlightModelRow(modelHits[modelCursor]);
+    } else if (e.key === "Enter") {
+      if (modelCursor >= 0 && modelHits[modelCursor]) {
+        e.preventDefault();
+        e.stopPropagation();
+        pickModel(modelHits[modelCursor]);
+      }
+    } else if (e.key === "Escape") {
+      e.stopPropagation();
+      gateModelSel.value = config.model;
+      closeModelList();
+    }
+  });
+
+  gateFormEl.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (modelCursor >= 0 && modelHits[modelCursor]) {
+      config.model = modelHits[modelCursor];
+      gateModelSel.value = config.model;
+    } else if (allModelIds.indexOf(gateModelSel.value) !== -1) config.model = gateModelSel.value;
+    else gateModelSel.value = config.model;
+    
+    closeModelList();
+    config.provider = currentProviderId;
+    config.apiKey = gateKeyInput.value.trim();
+    if (!config.apiKey) return;
+    saveConfig();
+    refreshModelName();
+    hideGate();
+    await playFakeLoader();
+    setMode("");
+    setText("");
+    speakWords("What are your commands ?");
+  });
+
+  changeProviderBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    closePanel();
+    showGate();
+  });
+
+  const THEME_KEY = "samaritain.dark";
+  const themeToggleBtn = document.getElementById("themeToggleBtn");
+  const gateThemeBtn = document.getElementById("gateThemeBtn");
+  function applyTheme(dark) {
+    document.body.classList.toggle("dark", dark);
+    const label = "Mode sombre : " + (dark ? "oui" : "non");
+    if (themeToggleBtn) themeToggleBtn.textContent = label;
+    if (gateThemeBtn) gateThemeBtn.textContent = label;
+  }
+  function loadTheme() {
+    let dark = false;
+    try { dark = localStorage.getItem(THEME_KEY) === "1"; } catch (e) {}
+    applyTheme(dark);
+  }
+  function toggleTheme() {
+    const dark = !document.body.classList.contains("dark");
+    applyTheme(dark);
+    try { localStorage.setItem(THEME_KEY, dark ? "1" : "0"); } catch (e) {}
+  }
+  for (const btn of [themeToggleBtn, gateThemeBtn]) {
+    if (btn) btn.addEventListener("click", (e) => { e.stopPropagation(); toggleTheme(); });
+  }
+
+  async function callProvider(promptText, onText) {
+    const p = PROVIDERS[config.provider];
+    if (!p) throw new Error("fournisseur inconnu: " + config.provider);
+    const messages = [
+      {
+        role: "system",
+        content: "Tu es une IA malÃ©fique nommÃ©e Samaritain. RÃ©ponds en franÃ§ais, le plus directement "
+          + "et clairement possible, en une phrase maximum, sujet verbe complÃ©ment. "
+          + "Ne dÃ©veloppe pas."
+      },
+      { role: "user", content: promptText }
+    ];
+    const req = p.build(config, messages);
+    const res = await fetch(req.url, req.init);
+    if (!res.ok) {
+      let detail = "";
+      try {
+        const body = await res.json();
+        detail = (body.error && (body.error.message || JSON.stringify(body.error)))
+          || body.message || "";
+      } catch (e) {}
+      throw new Error("HTTP " + res.status + (detail ? " â€” " + detail : ""));
+    }
+    if (!res.body) {
+      const data = await res.json();
+      const text = p.parse(data) || "";
+      if (text) onText(text);
+      return text;
+    }
+    return readSseStream(res.body, p.parse, onText);
+  }
+
+  async function queryModel(promptText) {
+    setMode("thinking");
+    if (dotsEl) dotsEl.hidden = false;
+    setText("");
+    streamQueue = [];
+    streamIndex = 0;
+    streamStarted = false;
+    lastWordCount = 0;
+    if (streamTimer) { clearTimeout(streamTimer); streamTimer = null; }
+    console.log("[info] " + ["[gen] demande=" + JSON.stringify(promptText)].join(" "));
+    showThinkingStatus();
+
+    if (!isConfigured()) {
       setMode("");
-      console.error("[gen] échec de génération :", err);
-      logDev("error", ["[gen] fail=" + describeError(err)]);
-      showStatus("Erreur: " + describeError(err).slice(0, 48));
-      await sleep(4000);
+      if (dotsEl) dotsEl.hidden = true;
+      console.log("[warn] [gen] aucun fournisseur configure");
+      showStatus("Configurez une cle API dans les reglages");
+      await sleep(3000);
+      hideStatus();
+      isBusy = false;
+      return;
+    }
+
+try {
+      let full = "";
+      const answer = await callProvider(promptText, (partial) => {
+        const trimmed = partial.trim();
+        if (!trimmed) return;
+        full = trimmed;
+        playStreamedWords(trimmed);
+      });
+      full = (answer || full || "").trim();
+      setMode("");
+      if (dotsEl) dotsEl.hidden = true;
+      console.log("[info] [gen] reponse=" + JSON.stringify(full));
+      if (!full) {
+        showStatus("Aucune reponse");
+        await sleep(2000);
+        hideStatus();
+      } else {
+        await speakWords(full);
+      }
+    } catch (err) {
+      setMode("");
+      if (dotsEl) dotsEl.hidden = true;
+      console.log("[error] [gen] echec " + describeError(err));
       hideStatus();
     } finally {
       isBusy = false;
@@ -551,15 +1136,22 @@
   const logView = document.getElementById("logView");
   const copyLogBtn = document.getElementById("copyLogBtn");
   let logShown = false;
-  logBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
+  function renderLog() {
+    logView.textContent = devLog.join("\n") || "aucune erreur enregistrÃ©e";
+    logView.scrollTop = logView.scrollHeight;
+  }
+  function toggleLog() {
     logShown = !logShown;
     logView.classList.toggle("show", logShown);
     copyLogBtn.style.display = logShown ? "block" : "none";
-    if (logShown) {
-      logView.textContent = devLog.join("\n") || "aucune erreur enregistrée";
-      logView.scrollTop = logView.scrollHeight;
-    }
+    if (logShown) renderLog();
+  }
+  logBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    toggleLog();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "l" || e.key === "L") toggleLog();
   });
   copyLogBtn.addEventListener("click", (e) => {
     e.stopPropagation();
@@ -570,120 +1162,41 @@
     } catch (err) {}
   });
 
-  (async () => {
-    await playFakeLoader();
-    setMode("");
-    setText("");
-  })();
-
   document.getElementById("replayLoaderBtn").addEventListener("click", async (e) => {
     e.stopPropagation();
     closePanel();
     if (isBusy) return;
     setText("");
-    await playFakeLoader();
+    await replayLoader();
     setMode("");
     setText("");
   });
-})();
-  const LOCAL_MODEL_ID = "onnx-community/Qwen2.5-0.5B-Instruct"; // ~500M, bon en FR
-  let generator = null;     
-  let transformersLib = null;
 
-  async function loadTransformers() {
-    if (transformersLib) return transformersLib;
-    transformersLib = await import(
-      "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.0.0"
-    );
-    return transformersLib;
+  function blockWhileLoading(e) {
+    if (loaderEl.style.display !== "flex") return;
+    if (e.type === "keydown" && (e.key === "l" || e.key === "L")) return;
+    e.preventDefault();
+    e.stopPropagation();
   }
+  document.addEventListener("click", blockWhileLoading, true);
+  document.addEventListener("keydown", blockWhileLoading, true);
 
-  async function loadModel(onProgress) {
-    if (generator) return generator;
-    const { pipeline } = await loadTransformers();
-    generator = await pipeline("text-generation", LOCAL_MODEL_ID, {
-      dtype: "q4",         
-      progress_callback: (p) => {
-        if (onProgress && p && typeof p.progress === "number") {
-          onProgress(p.progress); // 0-100
-        }
-      }
-    });
-    return generator;
-  }
+  // AppliquÃ© avant toute autre chose : sinon la page s'affiche en clair puis
+  // bascule, ce qui donne un flash blanc Ã  chaque rechargement.
+  loadTheme();
+  loadConfig();
+  refreshModelName();
 
-  const LANG = "fr-FR";
-  const WORD_DELAY_MS = 400;
-  const FADE_MS       = 150;
-
-  async function queryModel(promptText) {
-    setMode("thinking");
-    setText("");
-    logDev("info", ["[gen] demande='" + promptText + "'"]);
-    showThinkingStatus();
-
-    try {
-      const gen = await loadModel((pct) => {
-        showStatus("chargement du modèle " + Math.round(pct) + "%");
-      });
-
-      const messages = [
-        {
-          role: "system",
-          content: "Tu es Samaritain, une IA. Réponds en français, le plus " +
-            "directement et clairement possible, en une phrase maximum, " +
-            "sujet verbe complément. Ne développe pas."
-        },
-        { role: "user", content: promptText }
-      ];
-
-      const output = await gen(messages, {
-        max_new_tokens: 60,
-        temperature: 0.7,
-        do_sample: true,
-        return_full_text: false
-      });
-
-      let full = "";
-      if (Array.isArray(output) && output[0]) {
-        const gt = output[0].generated_text;
-        if (typeof gt === "string") {
-          full = gt;
-        } else if (Array.isArray(gt)) {
-          const last = gt[gt.length - 1];
-          full = (last && last.content) || "";
-        }
-      }
-      full = (full || "").trim();
-
-      hideStatus();
-      setMode("");
-      logDev("info", ["[gen] réponse='" + full + "'"]);
-      if (full) {
-        await speakWords(full);
-      } else {
-        showStatus("Aucune réponse");
-        await sleep(2000);
-        hideStatus();
-      }
-    } catch (err) {
-      hideStatus();
-      setMode("");
-      console.error("[gen] échec de génération :", err);
-      logDev("error", ["[gen] fail=" + describeError(err)]);
-      showStatus("Erreur: " + describeError(err).slice(0, 48));
-      await sleep(4000);
-      hideStatus();
-    } finally {
-      isBusy = false;
-    }
-  }
-
+  // PremiÃ¨re visite : le panneau de connexion s'affiche, le faux chargement
+  // n'est jouÃ© qu'une fois la clÃ© enregistrÃ©e.
   (async () => {
-    await playFakeLoader();
-    setMode("");
-    setText("");
-    loadModel().catch((e) => logDev("warn", ["[gen] préchargement échoué", e]));
-    speakWords("What are your commands ?");
+    if (isConfigured()) {
+      hideGate();
+      await playFakeLoader();
+      setMode("");
+      setText("");
+      speakWords("What are your commands ?");
+    } else {
+      showGate();
+    }
   })();
-})();
