@@ -11,18 +11,43 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 </head>
-<body>
+<body class="booting">
+  <div id="gate">
+    <div id="gate-inner">
+      <h1>Connexion</h1>
+      <p id="gate-sub">connectez un service d'intelligence artificielle</p>
+      <div id="gateLog"></div>
+      <div id="gateProviders"></div>
+      <form id="gateForm" autocomplete="off">
+        <label for="gateModel">Modèle <span id="gateModelCount"></span></label>
+        <div id="gateModelWrap">
+          <input id="gateModel" spellcheck="false" autocomplete="off" placeholder="cherchez un modèle…">
+          <div id="gateModelList" role="listbox" hidden></div>
+        </div>
+        <label for="gateKey">Clé API</label>
+        <input id="gateKey" type="password" spellcheck="false" placeholder="collez votre clé">
+        <div id="gateKeyRow">
+          <span id="gateKeyState"></span>
+          <a id="gateKeyLink" target="_blank" rel="noopener noreferrer">Obtenir une clé</a>
+        </div>
+        <button type="submit" id="gateSubmit">Se connecter</button>
+        <p id="gate-outro">la clé reste sur cet appareil</p>
+      </form>
+      <button type="button" id="gateThemeBtn">Mode sombre : non</button>
+    </div>
+  </div>
+
   <div id="main">
     <p id="text" class="hidden">&nbsp;</p>
     <hr id="bar">
   </div>
-  <div id="marker">
-    <span id="triangle">&#9650;</span>
-  </div>
+  <div id="marker"><span id="triangle">&#9650;</span><span class="dots" hidden><span class="dot dot-1"></span><span class="dot dot-2"></span><span class="dot dot-3"></span></span></div>
   <div id="settings" title="Réglages">&#9881;</div>
   <div id="panel">
-    <h1>Samaritan // Réglages</h1>
+    <h1>Réglages</h1>
     <p id="modelName"></p>
+    <button id="changeProviderBtn">Changer de service</button>
+    <button id="themeToggleBtn">Mode sombre : non</button>
     <button id="logBtn">Afficher le journal</button>
     <div id="logView"></div>
     <button id="copyLogBtn" style="display:none">Copier le journal</button>
@@ -34,15 +59,17 @@
     <div id="loader-center">
       <div id="boot-log"></div>
       <div id="loading-pane-container">
-        <div><span class="invert">loading <span class="cursor-blink">_</span></span></div>
+        <div><span class="invert">LOADING <span class="cursor-blink">_</span></span></div>
         <div id="loading-name">initialisation…</div>
         <div id="loading-bar-container"><div id="loading-bar"></div></div>
       </div>
       <div id="loading-connected"><span id="loading-connected-text" class="label">connection established</span></div>
     </div>
-    <div id="loader-left" class="loader-pane"><i class="cnr t"></i><i class="cnr b"></i></div>
-    <div id="loader-right" class="loader-pane"><i class="cnr t"></i><i class="cnr b"></i></div>
+    <div id="loader-left" class="loader-pane"></div>
+    <div id="loader-right" class="loader-pane"></div>
   </div>
+<script src="logos.js"></script>
+<script src="api.js"></script>
 <script src="index.js"></script>
 </body>
 </html>
